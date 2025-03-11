@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Narrador de Presentaciones</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- ResponsiveVoice JS -->
+  <script src="https://code.responsivevoice.org/responsivevoice.js"></script>
+  <style>
+    :root {
+      --primary-color: #007bff;
+      --secondary-color: #6c757d;
+      --success-color: #28a745;
+      --danger-color: #dc3545;
+      --light-color: #f8f9fa;
+      --dark-color: #343a40;
+      --background-color: #f0f3f8;
+      --control-bg: #ffffff;
+      --text-color: #333;
+      --border-radius: 8px;
+      --shadow: 0 2px 10px rgba(0,0,0,0.08);
+      --transition: all 0.2s ease-in-out;
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Roboto', Oxygen, Ubuntu, sans-serif;
+      background-color: var(--background-color);
+      color: var(--text-color);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    
+    /* Barra de herramientas principal */
+    #controls {
+      background-color: var(--control-bg);
+      border-bottom: 1px solid rgba(0,0,0,0.05);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: var(--shadow);
+      z-index: 10;
+      position: relative;
+    }
+    
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      position: relative;
+    }
+    
+    /* Contenedor principal */
+    #mainContainer {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+    
+    /* Contenedor del PDF */
+    #pdfContainer {
+      flex: 1;
+      overflow-y: auto;
+      background-color: var(--background-color);
+      padding: 30px;
+    }
+    
+    /* Ajustar ancho del visor y permitir scroll horizontal si excede */
+    #viewerContainer {
+      width: 100%;
+      overflow-x: auto;
+      margin: 0 auto;
+    }
+    
+    canvas {
+      box-shadow: var(--shadow);
+      background-color: white;
+      border-radius: var(--border-radius);
+      max-width: 100%;
+      height: auto;
+      display: block;
+      margin: 0 auto;
+    }
+    
+    /* Barra de texto */
+    #textDisplayBar {
+      background-color: white;
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.05);
+      border-top: 1px solid rgba(0,0,0,0.05);
+      padding: 15px 25px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 5;
+      transition: height 0.3s ease-in-out;
+      min-height: 100px;
+      max-height: 120px;
+      overflow: hidden;
+    }
+    
+    #textDisplayBar.hidden {
+      min-height: 0;
+      max-height: 0;
+      padding: 0;
+      border: none;
+    }
+    
+    #textContent {
+      font-size: 24px;
+      line-height: 1.5;
+      color: var(--text-color);
+      text-align: center;
+      width: 100%;
+      max-width: 900px;
+    }
+    
+    .highlight {
+      background-color: rgba(0, 123, 255, 0.15);
+      border-radius: 4px;
+      padding: 2px 4px;
+      margin: 0 -4px;
+      color: var(--primary-color);
+      font-weight: 500;
+    }
+    
+    button {
+      background-color: var(--control-bg);
+      border: 1px solid rgba(0,0,0,0.1);
+      color: var(--text-color);
+      padding: 8px;
+      text-align: center;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      cursor: pointer;
+      border-radius: 50px;
+      transition: var(--transition);
+      min-width: 32px;
+      min-height: 32px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      background: none;
+      border: none;
+    }
+    
+    button:hover {
+      background-color: rgba(0,0,0,0.03);
+      transform: translateY(-1px);
+    }
+    
+    button:active {
+      transform: translateY(0);
+    }
+    
+    button:disabled {
+      background-color: #f5f5f5;
+      color: #bbbbbb;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    .navigation-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 5px;
+    }
+    
+    #pageInfo {
+      font-size: 14px;
+      font-weight: 500;
+      min-width: 50px;
+      text-align: center;
+      color: var(--text-color);
+    }
+    
+    .page-navigation {
+      display: flex;
+      align-items: center;
+      background-color: white;
+      border-radius: 30px;
+      padding: 2px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    
+    .round-button {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 0;
+    }
+    
+    .divider {
+      height: 24px;
+      width: 1px;
+      background-color: rgba(0, 0, 0, 0.1);
+      margin: 0 5px;
+    }
+    
+    #ccToggle {
+      font-weight: bold;
+      color: var(--primary-color);
+    }
+    
+    #ccToggle.active {
+      background-color: var(--danger-color);
+      color: white;
+      border-color: var(--danger-color);
+    }
+    
+    #readBtn {
+      background-color: var(--primary-color);
+      color: white;
+      border-color: var(--primary-color);
+    }
+    
+    #readBtn:hover {
+      background-color: #0069d9;
+    }
+    
+    #pauseBtn, #stopBtn {
+      color: var(--text-color);
+    }
+    
+    #speedControl {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin: 0 5px;
+      background-color: rgba(0,0,0,0.03);
+      border-radius: 30px;
+      padding: 2px 10px;
+    }
+    
+    #speedValue {
+      min-width: 30px;
+      text-align: center;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    
+    #speedSlider {
+      -webkit-appearance: none;
+      width: 100px;
+      height: 4px;
+      border-radius: 2px;
+      background: #ddd;
+      outline: none;
+      margin: 0 10px;
+    }
+    #speedSlider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--primary-color);
+      cursor: pointer;
+    }
+    
+    select {
+      padding: 5px 10px;
+      border-radius: 20px;
+      border: 1px solid rgba(0,0,0,0.1);
+      background-color: white;
+      min-width: 120px;
+      font-size: 13px;
+      height: 32px;
+      appearance: none;
+      background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      background-size: 12px;
+      padding-right: 30px;
+    }
+    select:focus {
+      outline: none;
+      border-color: var(--primary-color);
+    }
+    
+    .theme-selector {
+      position: absolute;
+      top: 40px;
+      right: 0;
+      background: white;
+      border: 1px solid #ddd;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      border-radius: 5px;
+      display: none;
+      z-index: 100;
+      padding: 5px;
+    }
+    .theme-selector button {
+      background: none;
+      border: none;
+      padding: 5px;
+      cursor: pointer;
+    }
+    .theme-selector button:hover {
+      background-color: #f0f0f0;
+    }
+    .theme-circle {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 1px solid #ddd;
+    }
+    
+    @media (max-width: 768px) {
+      #controls {
+        padding: 10px;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 10px;
+      }
+      .control-group {
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+      #textContent {
+        font-size: 18px;
+      }
+      #pdfContainer {
+        padding: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <div class="control-group">
+      <div class="page-navigation">
+        <button id="prevPage" class="round-button" disabled title="Página anterior">
+          <i class="fas fa-chevron-left"></i>
+        </button>
+        <span id="pageInfo">1 / 7</span>
+        <button id="nextPage" class="round-button" disabled title="Página siguiente">
+          <i class="fas fa-chevron-right"></i>
+        </button>
+      </div>
+    </div>
+    
+    <div class="control-group">
+      <!-- Botón de lectura -->
+      <button id="readBtn" class="round-button" title="Leer" disabled>
+        <i class="fas fa-play"></i>
+      </button>
+      <!-- Botón de pausa: no soportado con ResponsiveVoice -->
+      <button id="pauseBtn" class="round-button" disabled title="Pausar">
+        <i class="fas fa-pause"></i>
+      </button>
+      <button id="stopBtn" class="round-button" disabled title="Detener">
+        <i class="fas fa-stop"></i>
+      </button>
+      
+      <div class="divider"></div>
+      
+      <div class="control-group" id="speedControl">
+        <span>Velocidad:</span>
+        <span id="speedValue">1x</span>
+        <input type="range" id="speedSlider" min="0.5" max="2" step="0.1" value="1">
+      </div>
+      
+      <div class="divider"></div>
+      
+      <select id="voiceSelect" title="Seleccionar voz"></select>
+      
+      <div class="divider"></div>
+      
+      <button id="ccToggle" class="round-button" title="Mostrar/Ocultar Subtítulos">CC</button>
+      
+      <button id="decreaseText" class="round-button" title="Disminuir tamaño del texto">
+        <i class="fas fa-minus"></i>
+      </button>
+      <button id="increaseText" class="round-button" title="Aumentar tamaño del texto">
+        <i class="fas fa-plus"></i>
+      </button>
+      
+      <div class="divider"></div>
+      
+      <button id="themeToggle" class="round-button" title="Cambiar tema">
+        <i class="fas fa-palette"></i>
+      </button>
+      <div class="theme-selector" id="themeSelector">
+        <button data-theme="default" title="Tema por defecto">
+          <span class="theme-circle" style="background-color: white;"></span>
+        </button>
+        <button data-theme="green" title="Verde claro / Negro">
+          <span class="theme-circle" style="background-color: #e6f9e6;"></span>
+        </button>
+        <button data-theme="blue" title="Azul oscuro / Blanco">
+          <span class="theme-circle" style="background-color: #001f3f;"></span>
+        </button>
+        <button data-theme="pink" title="Rosado claro / Negro">
+          <span class="theme-circle" style="background-color: #ffe6f2;"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+  
+  <div id="mainContainer">
+    <div id="pdfContainer">
+      <div id="loadingMessage">Cargando presentación...</div>
+      <div id="viewerContainer">
+        <canvas id="pdfViewer"></canvas>
+      </div>
+    </div>
+    
+    <div id="textDisplayBar">
+      <div id="textContent">El texto de la presentación aparecerá aquí mientras se lee...</div>
+    </div>
+  </div>
+  
+  <script>
+    // Configuración de PDF.js
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    
+    // Variables principales
+    let pdfDoc = null;
+    let pageNum = 1;
+    let pageRendering = false;
+    let pageNumPending = null;
+    let canvas = document.getElementById('pdfViewer');
+    let ctx = canvas.getContext('2d');
+    let scale = 1.5;
+    let speakingPageNum = null;
+    let pdfText = [];
+    let pdfSentences = [];
+    let currentRate = 1.0;
+    let currentSentence = 0;
+    let isReading = false;
+    let currentFontSize = 24;
+    let subtitlesVisible = true;
+    let extractionPromises = [];
+    
+    // Elementos DOM
+    const prevButton = document.getElementById('prevPage');
+    const nextButton = document.getElementById('nextPage');
+    const pageInfo = document.getElementById('pageInfo');
+    const readBtn = document.getElementById('readBtn');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const voiceSelect = document.getElementById('voiceSelect');
+    const speedValue = document.getElementById('speedValue');
+    const speedSlider = document.getElementById('speedSlider');
+    const loadingMessage = document.getElementById('loadingMessage');
+    const viewerContainer = document.getElementById('viewerContainer');
+    const textContent = document.getElementById('textContent');
+    const textDisplayBar = document.getElementById('textDisplayBar');
+    const ccToggle = document.getElementById('ccToggle');
+    const increaseText = document.getElementById('increaseText');
+    const decreaseText = document.getElementById('decreaseText');
+    const themeToggle = document.getElementById('themeToggle');
+    const themeSelector = document.getElementById('themeSelector');
+    
+    // Obtener parámetros de la URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const presentationId = urlParams.get('id') || 'default';
+    
+    // Mapeo de presentaciones
+    const presentations = {
+      'default': './pdf/presentacion1.pdf',
+      'presentacion1': './pdf/presentacion1.pdf',
+      'presentacion2': './pdf/presentacion2.pdf',
+      'presentacion3': './pdf/presentacion3.pdf'
+    };
+    
+    const pdfUrl = presentations[presentationId] || presentations['default'];
+    
+    // Cargar el PDF y extraer el texto de todas las páginas
+    function loadPDF(url) {
+      pdfjsLib.getDocument(url).promise.then(function(pdf) {
+        pdfDoc = pdf;
+        pageInfo.textContent = `${pageNum} / ${pdfDoc.numPages}`;
+        prevButton.disabled = pageNum <= 1;
+        nextButton.disabled = pageNum >= pdfDoc.numPages;
+        
+        pdfText = new Array(pdfDoc.numPages);
+        pdfSentences = new Array(pdfDoc.numPages);
+        extractionPromises = [];
+        for (let i = 1; i <= pdfDoc.numPages; i++) {
+          extractionPromises.push(extractTextFromPage(i));
+        }
+        
+        renderPage(pageNum);
+        
+        extractionPromises[0].then(() => {
+          readBtn.disabled = false;
+          loadingMessage.style.display = 'none';
+        });
+      }).catch(function(error) {
+        console.error('Error al cargar el PDF:', error);
+        loadingMessage.textContent = 'Error al cargar la presentación. Por favor, inténtalo de nuevo. ' + error.message;
+      });
+    }
+    
+    // Extraer texto de una página y dividirlo en oraciones
+    function extractTextFromPage(pageNumber) {
+      return pdfDoc.getPage(pageNumber).then(function(page) {
+        return page.getTextContent();
+      }).then(function(textContentObj) {
+        const text = textContentObj.items.map(item => item.str).join(' ');
+        pdfText[pageNumber - 1] = text;
+        
+        const sentenceRegex = /[.!?]+\s+(?=[A-Z])/g;
+        let sentences = text.split(sentenceRegex);
+        
+        if (sentences.length <= 3) {
+          sentences = text.split(/[,.;]\s+/);
+        }
+        
+        sentences = sentences.reduce((acc, sentence) => {
+          if (sentence.length > 100) {
+            const middle = sentence.length / 2;
+            let splitIndex = sentence.indexOf(' ', middle - 20);
+            if (splitIndex === -1) splitIndex = sentence.indexOf(' ', middle / 2);
+            if (splitIndex === -1) {
+              acc.push(sentence);
+            } else {
+              acc.push(sentence.substring(0, splitIndex));
+              acc.push(sentence.substring(splitIndex + 1));
+            }
+          } else {
+            acc.push(sentence);
+          }
+          return acc;
+        }, []);
+        
+        pdfSentences[pageNumber - 1] = sentences.filter(s => s.trim() !== '');
+      }).catch(function(error) {
+        console.error(`Error al extraer texto de la página ${pageNumber}:`, error);
+      });
+    }
+    
+    // Mostrar una oración específica en la barra inferior
+    function displaySentence(sentenceIndex) {
+      if (!pdfSentences[pageNum - 1] || sentenceIndex >= pdfSentences[pageNum - 1].length) {
+        textContent.textContent = "Fin de la página";
+        return;
+      }
+      const sentence = pdfSentences[pageNum - 1][sentenceIndex].trim();
+      textContent.textContent = sentence;
+    }
+    
+    // Renderizar una página específica
+    function renderPage(num) {
+      pageRendering = true;
+      
+      pdfDoc.getPage(num).then(function(page) {
+        const viewport = page.getViewport({ scale });
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+        
+        const renderContext = {
+          canvasContext: ctx,
+          viewport: viewport
+        };
+        
+        const renderTask = page.render(renderContext);
+        renderTask.promise.then(function() {
+          pageRendering = false;
+          if (pageNumPending !== null) {
+            renderPage(pageNumPending);
+            pageNumPending = null;
+          }
+        });
+      }).catch(function(error) {
+        console.error(`Error al renderizar la página ${num}:`, error);
+        pageRendering = false;
+      });
+      
+      pageInfo.textContent = `${num} / ${pdfDoc.numPages}`;
+      prevButton.disabled = num <= 1;
+      nextButton.disabled = num >= pdfDoc.numPages;
+      
+      if (pdfSentences[num - 1] && pdfSentences[num - 1].length > 0) {
+        currentSentence = 0;
+        displaySentence(currentSentence);
+      }
+      
+      if (!pdfText[num - 1] || pdfText[num - 1].trim() === '') {
+        readBtn.disabled = true;
+        extractionPromises[num - 1].then(() => { readBtn.disabled = false; });
+      } else {
+        readBtn.disabled = false;
+      }
+    }
+    
+    // Navegación entre páginas
+    function onPrevPage() {
+      if (pageNum <= 1) return;
+      pageNum--;
+      queueRenderPage(pageNum);
+      stopSpeaking();
+    }
+    
+    function onNextPage() {
+      if (pageNum >= pdfDoc.numPages) return;
+      pageNum++;
+      queueRenderPage(pageNum);
+      stopSpeaking();
+    }
+    
+    function queueRenderPage(num) {
+      if (pageRendering) {
+        pageNumPending = num;
+      } else {
+        renderPage(num);
+      }
+    }
+    
+    // Lectura del texto de la página actual usando ResponsiveVoice
+    function readCurrentPage() {
+      extractionPromises[pageNum - 1].then(() => {
+        if (!pdfText[pageNum - 1] || pdfText[pageNum - 1].trim() === '') {
+          alert('No hay texto disponible para esta página');
+          return;
+        }
+        speakingPageNum = pageNum;
+        currentSentence = 0;
+        isReading = true;
+        displaySentence(currentSentence);
+        startSpeakingSentence();
+        
+        readBtn.disabled = true;
+        pauseBtn.disabled = false;
+        stopBtn.disabled = false;
+      });
+    }
+    
+    // Iniciar lectura de una oración usando ResponsiveVoice
+    function startSpeakingSentence() {
+      if (currentSentence >= pdfSentences[pageNum - 1].length) {
+        if (pageNum < pdfDoc.numPages) {
+          setTimeout(() => {
+            onNextPage();
+            readCurrentPage();
+          }, 1000);
+        } else {
+          stopSpeaking();
+        }
+        return;
+      }
+      
+      let sentence = pdfSentences[pageNum - 1][currentSentence].trim();
+      displaySentence(currentSentence);
+      
+      responsiveVoice.speak(sentence, voiceSelect.value, {
+        rate: currentRate,
+        onend: function() {
+          currentSentence++;
+          if (isReading) {
+            startSpeakingSentence();
+          }
+        },
+        onerror: function(error) {
+          console.error('Error en la síntesis de voz:', error);
+        }
+      });
+    }
+    
+    // Función de pausa: ResponsiveVoice no soporta pausa, se notifica al usuario
+    function togglePause() {
+      alert("La función de pausar no está soportada con ResponsiveVoice. Usa 'Detener' para parar la lectura.");
+    }
+    
+    // Detener la lectura
+    function stopSpeaking() {
+      responsiveVoice.cancel();
+      readBtn.disabled = false;
+      pauseBtn.disabled = true;
+      stopBtn.disabled = true;
+      isReading = false;
+      if (pdfSentences[pageNum - 1] && pdfSentences[pageNum - 1].length > 0) {
+        currentSentence = 0;
+        displaySentence(currentSentence);
+      }
+    }
+    
+    // Actualizar velocidad
+    function updateSpeed() {
+      currentRate = parseFloat(speedSlider.value);
+      speedValue.textContent = currentRate.toFixed(1) + 'x';
+    }
+    
+    // Mostrar/Ocultar subtítulos
+    function toggleSubtitles() {
+      subtitlesVisible = !subtitlesVisible;
+      if (subtitlesVisible) {
+        textDisplayBar.classList.remove('hidden');
+        ccToggle.classList.remove('active');
+        ccToggle.title = "Ocultar Subtítulos";
+      } else {
+        textDisplayBar.classList.add('hidden');
+        ccToggle.classList.add('active');
+        ccToggle.title = "Mostrar Subtítulos";
+      }
+    }
+    
+    // Cargar voces para ResponsiveVoice
+    function loadVoices() {
+      const voiceOptions = ["Spanish Female", "Spanish Male"];
+      voiceSelect.innerHTML = "";
+      voiceOptions.forEach(function(voice) {
+        let option = document.createElement("option");
+        option.value = voice;
+        option.textContent = voice;
+        voiceSelect.appendChild(option);
+      });
+      voiceSelect.value = voiceOptions[0];
+    }
+    
+    // Eventos de botones
+    prevButton.addEventListener('click', onPrevPage);
+    nextButton.addEventListener('click', onNextPage);
+    readBtn.addEventListener('click', readCurrentPage);
+    pauseBtn.addEventListener('click', togglePause);
+    stopBtn.addEventListener('click', stopSpeaking);
+    speedSlider.addEventListener('input', updateSpeed);
+    ccToggle.addEventListener('click', toggleSubtitles);
+    
+    window.addEventListener('keydown', function(e) {
+      if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        onPrevPage();
+      } else if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
+        onNextPage();
+      }
+    });
+    
+    increaseText.addEventListener('click', function() {
+      currentFontSize += 2;
+      textContent.style.fontSize = currentFontSize + "px";
+    });
+    
+    decreaseText.addEventListener('click', function() {
+      if (currentFontSize > 10) {
+        currentFontSize -= 2;
+        textContent.style.fontSize = currentFontSize + "px";
+      }
+    });
+    
+    themeToggle.addEventListener('click', function(e) {
+      e.stopPropagation();
+      themeSelector.style.display = themeSelector.style.display === 'block' ? 'none' : 'block';
+    });
+    
+    themeSelector.querySelectorAll('button').forEach(button => {
+      button.addEventListener('click', function() {
+        const selectedTheme = this.getAttribute('data-theme');
+        switch(selectedTheme) {
+          case 'default':
+            textDisplayBar.style.backgroundColor = "white";
+            textContent.style.color = "#333";
+            break;
+          case 'green':
+            textDisplayBar.style.backgroundColor = "#e6f9e6";
+            textContent.style.color = "#000";
+            break;
+          case 'blue':
+            textDisplayBar.style.backgroundColor = "#001f3f";
+            textContent.style.color = "#fff";
+            break;
+          case 'pink':
+            textDisplayBar.style.backgroundColor = "#ffe6f2";
+            textContent.style.color = "#000";
+            break;
+        }
+        themeSelector.style.display = 'none';
+      });
+    });
+    
+    window.addEventListener('click', function() {
+      themeSelector.style.display = 'none';
+    });
+    
+    // Inicializar
+    loadVoices();
+    loadPDF(pdfUrl);
+  </script>
+</body>
+</html>
